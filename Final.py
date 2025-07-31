@@ -1,7 +1,9 @@
 import pandas as pd
 import numpy as np
 from sklearn.preprocessing import StandardScaler
+from scipy.stats import pointbiserialr
 import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
 
 def OutlierDetector(data):
     '''Detects outliers in a given pandas Series using the IQR method.
@@ -42,29 +44,49 @@ def DefaultFlagGenerator(df):
     df['default_flag'] = default_flag.astype(int)
     return df
 
-data = pd.read_csv('bnpl.csv')
+def binary_col(data):
+    #return the binary columns
+    binary_cols=[col for col in data.columns if data[col].nunique() == 2]
+    return binary_cols
 
-num_cols = data.select_dtypes(include=['float64', 'int64']).columns
-binary_cols = [col for col in num_cols if data[col].nunique() == 2]
-continuous_cols = [col for col in num_cols if data[col].nunique() > 2]
+
+def continuous_col(data):
+    #return the continuous columns
+    continuous_cols=[col for col in data.columns if data[col].nunique() > 2]
+    return continuous_cols
+
+
+
+def Scaler(data):
+    binary_cols = binary_col(data)
+    continuous_cols = continuous_col(data)
+    scaler = StandardScaler()
+   # Scale the continuous columns
+    scaled_continuous = scaler.fit_transform(data[continuous_cols])
+    scaled_continuous_df = pd.DataFrame(scaled_continuous, columns=continuous_cols)
+    # Combine the scaled continuous columns with the binary columns
+    result = pd.concat([data[binary_cols].reset_index(drop=True), scaled_continuous_df.reset_index(drop=True)], axis=1)
+    return result
+
+
+data = pd.read_csv('bnpl.csv')
 
 for column in data.select_dtypes(include=['float64', 'int64']).columns:
     outliers = OutlierDetector(data[column])
     print(f"Outliers in {column}:\n", outliers)
-    
+
+
 data = DefaultFlagGenerator(data)
 data_clean = data.drop(columns=['CustomerID'])
-data_scaled = Scaler(data_clean, continuous_cols, binary_cols)
 
-# Assuming 'data_scaled' is a NumPy array and 'df' is your original DataFrame
-# Replace the continuous columns in the original DataFrame with the scaled data
-
-# Save the scaled DataFrame to a CSV file
+data_scaled = Scaler(data_clean)
 data_scaled.to_csv('bnpl_scaled.csv', index=False)
-
 print("Data processing complete. Scaled data saved to 'bnpl_scaled.csv'.")
 
-# run histograms for continuous columns
+continuous_cols = continuous_col(data_scaled)
+binary_cols = binary_col(data_scaled)
+
+#print histograms for continuous columns
 for column in continuous_cols:
     plt.figure(figsize=(10, 6))
     plt.hist(data_scaled[column], bins=30, edgecolor='black')
@@ -76,14 +98,6 @@ for column in continuous_cols:
     plt.close()
     
 
-#check for outliers in each column
-for column in data_scaled.select_dtypes(include=['float64', 'int64']).columns:
-    outliers = OutlierDetector(data_scaled[column])
-    if not outliers.empty:
-        print(f"Outliers in {column}:\n", outliers)
-    else:
-        print(f"No outliers detected in {column}.")
-    
 #print boxplots for continuous columns
 for column in continuous_cols:
     plt.figure(figsize=(10, 6))
@@ -93,7 +107,8 @@ for column in continuous_cols:
     plt.grid(axis='y', alpha=0.75)
     plt.savefig(f'boxplots/{column}_boxplot.png')
     plt.close()
-    
+
+
 #check the balance of the binary columns
 for column in binary_cols:
     balance = data_scaled[column].value_counts(normalize=True)
@@ -105,6 +120,8 @@ for column in binary_cols:
     plt.ylabel('Proportion')
     plt.grid(axis='y', alpha=0.75)
     plt.savefig(f'balances/{column}_balance.png')
+    plt.figtext(0.5, 0.01, f"Balance of {column}: {balance.to_dict()}", ha='center', fontsize=10)
+    plt.tight_layout()
     plt.close()
 
 # Initialize an empty list to store outlier indices
@@ -135,8 +152,22 @@ for column in continuous_cols:
 # Print the list of outlier indices
 print("Outlier indices:", outlier_indices)
 
+#drop the outliers from the data_scaled dataframe
 data_scaled_cleaned = data_scaled.drop(index=outlier_indices)
 
+#plot 2 boxplots for each column one with default flag 0 and one with default flag 1
+continuous_cols = continuous_col(data_scaled_cleaned)
+for column in continuous_cols:
+    plt.figure(figsize=(10, 6))
+    data_scaled_cleaned.boxplot(column=column, by='default_flag')
+    plt.title(f'Boxplot of {column} by Default Flag')
+    plt.suptitle('')
+    plt.xlabel('Default Flag')
+    plt.ylabel(column)
+    plt.grid(axis='y', alpha=0.75)
+    plt.savefig(f'boxplots/{column}_boxplot_by_default_flag.png')
+    plt.close()
+    
 #plot the correlation matrix again after removing outliers
 correlation_matrix_cleaned = data_scaled_cleaned.corr()
 plt.figure(figsize=(12, 10))
@@ -147,14 +178,80 @@ plt.title('Correlation Matrix (Cleaned Data)')
 plt.xticks(ticks=np.arange(len(data_scaled_cleaned.columns)), labels=data_scaled_cleaned.columns, rotation=45, ha='right')
 plt.yticks(ticks=np.arange(len(data_scaled_cleaned.columns)), labels=data_scaled_cleaned.columns)
 plt.savefig('correlation_matrix_cleaned.png')
+plt.close()
 
 #what is the numerical value of the corr of 'bnpl_usage_frequency' and 'over_indebtedness_flag'
 corr_value = correlation_matrix_cleaned.loc['bnpl_usage_frequency', 'over_indebtedness_flag']
 print(f"Correlation between 'bnpl_usage_frequency' and 'over_indebtedness_flag': {corr_value:.4f}")
 
-
 #drop the over_indebtedness_flag column from the data_scaled_cleaned dataframe
 data_scaled_cleaned = data_scaled_cleaned.drop(columns=['over_indebtedness_flag'])
 binary_cols = [col for col in binary_cols if col != 'over_indebtedness_flag']
 data_scaled_cleaned.to_csv('bnpl_scaled_cleaned.csv', index=False)
-print("Data processing complete. Cleaned scaled data saved to 'bnpl_scaled_cleaned.csv'.")
+
+
+# concat the following stress_usage_interaction = financial_stress_score × bnpl_usage_frequency
+data_scaled_cleaned['stress_usage_interaction'] = (
+    data_scaled_cleaned['financial_stress_score'] * data_scaled_cleaned['bnpl_usage_frequency']
+)
+
+#adjusted_debt_interaction = bnpl_debt_ratio + financial_stress_score
+data_scaled_cleaned['adjusted_debt_interaction'] = (
+    data_scaled_cleaned['bnpl_debt_ratio'] * data_scaled_cleaned['financial_stress_score']
+)
+data_scaled_cleaned.to_csv('bnpl_scaled_cleaned_interactions.csv', index=False)
+
+#get the mean and std of the new columns
+new_columns = [
+    'stress_usage_interaction',
+    'adjusted_debt_interaction'
+]
+mean_std = data_scaled_cleaned[new_columns].agg(['mean', 'std'])
+print("Mean and Standard Deviation of New Columns:")
+print(mean_std)
+
+#plot a new correlation matrix with the new columns
+correlation_matrix_new = data_scaled_cleaned.corr()
+plt.figure(figsize=(12, 10))
+plt.imshow(correlation_matrix_new, cmap='coolwarm', interpolation='none')
+plt.colorbar()
+plt.title('Correlation Matrix with New Columns')
+#change the x and y ticks to the column names
+plt.xticks(ticks=np.arange(len(data_scaled_cleaned.columns)), labels=data_scaled_cleaned.columns, rotation=45, ha='right')
+plt.yticks(ticks=np.arange(len(data_scaled_cleaned.columns)), labels=data_scaled_cleaned.columns)
+plt.show()
+
+final_data = pd.read_csv('bnpl_scaled_cleaned_interactions.csv')
+
+# 1) split off test set
+train_val, test = train_test_split(
+    final_data,
+    test_size=0.20,
+    stratify=final_data['default_flag'],
+    random_state=42
+)
+
+# 2) split train vs. validation from the remaining 80%
+train, val = train_test_split(
+    train_val,
+    test_size=0.25,                       # 0.25 × 80% → 20% overall
+    stratify=train_val['default_flag'],
+    random_state=42
+)
+
+print("Default rates:",
+      train['default_flag'].mean(),
+      val['default_flag'].mean(),
+      test['default_flag'].mean())
+train_idx = train.index.to_list()
+val_idx   = val.index.to_list()
+test_idx  = test.index.to_list()
+#print the indices and the number of indices in each set
+print(f"Train indices: {train_idx[:10]}... ({len(train_idx)} total)")
+print(f"Validation indices: {val_idx[:10]}... ({len(val_idx)} total)")
+print(f"Test indices: {test_idx[:10]}... ({len(test_idx)} total)")
+
+#create 3 csv files for train, val and test sets
+train.to_csv('train_set.csv', index=False)
+val.to_csv('val_set.csv', index=False)
+test.to_csv('test_set.csv', index=False)
