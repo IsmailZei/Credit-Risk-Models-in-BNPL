@@ -74,15 +74,7 @@ print("Data processing complete. Scaled data saved to 'bnpl_scaled.csv'.")
 
 # run histograms for continuous columns
 continuous_cols = continuous_col(data_scaled)
-for column in continuous_cols:
-    plt.figure(figsize=(10, 6))
-    plt.hist(data_scaled[column], bins=30, edgecolor='black')
-    plt.title(f'Histogram of {column}')
-    plt.xlabel(column)
-    plt.ylabel('Frequency')
-    plt.grid(axis='y', alpha=0.75)
-    plt.savefig(f'C:\\Users\\ixz407\\OneDrive - University of Birmingham\\Dissertation\\Machine Learning\\Dissertation\\Plots\Histograms\\{column}_histogram.png')
-    plt.close()
+binary_cols = binary_col(data_scaled)
 
 #check for outliers in each column
 for column in data_scaled.select_dtypes(include=['float64', 'int64']).columns:
