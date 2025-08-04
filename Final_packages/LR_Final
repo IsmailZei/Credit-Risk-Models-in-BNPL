@@ -1,0 +1,202 @@
+import matplotlib.pyplot as plt
+import pandas as pd
+import numpy as np
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.metrics import precision_recall_curve
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import classification_report, confusion_matrix
+from sklearn.metrics import (
+    accuracy_score,
+    precision_score,
+    recall_score,
+    f1_score,
+    roc_auc_score,
+    confusion_matrix,
+    classification_report,
+    roc_curve
+)
+
+
+
+train_df = pd.read_csv(r'C:\Users\ixz407\OneDrive - University of Birmingham\Dissertation\Machine Learning\Dissertation\Tables\bnpl_train.csv')
+test_df = pd.read_csv(r'C:\Users\ixz407\OneDrive - University of Birmingham\Dissertation\Machine Learning\Dissertation\Tables\bnpl_test.csv')
+val_df = pd.read_csv(r'C:\Users\ixz407\OneDrive - University of Birmingham\Dissertation\Machine Learning\Dissertation\Tables\bnpl_val.csv')
+target_col = "default_flag"
+
+X_train = train_df.drop(columns=[target_col])
+y_train = train_df[target_col]
+
+X_test = test_df.drop(columns=[target_col])
+y_test = test_df[target_col]
+
+X_val = val_df.drop(columns=[target_col])
+y_val = val_df[target_col]
+
+#Baseline Model
+
+baseline_model = LogisticRegression(random_state=42, max_iter=1000)
+baseline_model.fit(X_train, y_train)
+
+baseline_model = LogisticRegression(random_state=42, max_iter=1000)
+baseline_model.fit(X_train, y_train)
+
+
+y_val_pred   = baseline_model.predict(X_val)
+y_val_proba  = baseline_model.predict_proba(X_val)[:, 1]
+
+# 3. Compute the core metrics
+baseline_metrics = {
+    "accuracy":  accuracy_score(y_val, y_val_pred),
+    "precision": precision_score(y_val, y_val_pred),
+    "recall":    recall_score(y_val, y_val_pred),
+    "f1_score":  f1_score(y_val, y_val_pred),
+    "roc_auc":   roc_auc_score(y_val, y_val_proba)
+}
+print("Validation metrics:")
+for name, val in baseline_metrics.items():
+    print(f"  {name:>9}: {val:.4f}")
+
+# 4. Confusion matrix
+baseline_cm = confusion_matrix(y_val, y_val_pred)
+print("\nConfusion matrix:")
+print(baseline_cm)
+# Optionally, a prettier display using classification_report:
+print("\nClassification report:")
+print(classification_report(y_val, y_val_pred))
+
+# 5. Plot the ROC curve
+fpr, tpr, thresholds = roc_curve(y_val, y_val_proba)
+plt.plot(fpr, tpr, lw=2)
+plt.plot([0, 1], [0, 1], ls="--", color="grey")  # diagonal
+plt.xlabel("False Positive Rate")
+plt.ylabel("True Positive Rate")
+plt.title("ROC Curve (Validation Set)")
+plt.show()
+
+#Balanced Model
+# OPTION A: automatic balancing
+balanced_model = LogisticRegression(
+    class_weight="balanced",
+    random_state=42,
+    max_iter=1000
+)
+balanced_model.fit(X_train, y_train)
+# 3. Compute the core metrics
+balanced_metrics = {
+    "accuracy":  accuracy_score(y_val, y_val_pred),
+    "precision": precision_score(y_val, y_val_pred),
+    "recall":    recall_score(y_val, y_val_pred),
+    "f1_score":  f1_score(y_val, y_val_pred),
+    "roc_auc":   roc_auc_score(y_val, y_val_proba)
+}
+print("Validation metrics:")
+for name, val in balanced_metrics.items():
+    print(f"  {name:>9}: {val:.4f}")
+
+# 4. Confusion matrix
+balanced_cm = confusion_matrix(y_val, y_val_pred)
+print("\nConfusion matrix:")
+print(balanced_cm)
+# Optionally, a prettier display using classification_report:
+print("\nClassification report:")
+print(classification_report(y_val, y_val_pred))
+
+# 5. Plot the ROC curve
+fpr, tpr, thresholds = roc_curve(y_val, y_val_proba)
+plt.figure()
+plt.plot(fpr, tpr, lw=2)
+plt.plot([0, 1], [0, 1], ls="--", color="grey")  # diagonal
+plt.xlabel("False Positive Rate")
+plt.ylabel("True Positive Rate")
+plt.title("ROC Curve (Validation Set)")
+plt.show()
+
+
+probs_baseline = baseline_model.predict_proba(X_val)[:,1]
+probs_balanced = balanced_model.predict_proba(X_val)[:,1]
+
+print(probs_baseline[:10])
+print(probs_balanced[:10])
+
+#Threshold Tuning
+proba_array = balanced_model.predict_proba(X_val)
+probs = proba_array[:, 1]
+print("First 10 default‐probabilities:", np.round(probs[:10], 3))
+print("Range of probs:  min =", probs.min(), " max =", probs.max())
+
+# 2.1 Compute arrays of precision, recall, and thresholds
+precision, recall, thresholds = precision_recall_curve(y_val, probs)
+
+# 2.2 Inspect their lengths
+print("Precision array length:", len(precision))
+print("Recall    array length:", len(recall))
+print("Thresholds array length:", len(thresholds))
+
+
+# 2.3 Peek at the first few entries
+for i in range(5):
+    print(f"thr={thresholds[i]:.3f} → precision={precision[i]:.3f}, recall={recall[i]:.3f}")
+
+
+plt.figure(figsize=(6, 4))
+plt.plot(recall, precision, marker='.', linewidth=1)
+plt.xlabel("Recall")
+plt.ylabel("Precision")
+plt.title("Precision–Recall Curve (Validation)")
+plt.grid(True)
+plt.show()
+
+target_recall = 0.80
+
+# 1. Find all indices where recall ≥ target
+valid_idxs = np.where(recall >= target_recall)[0]
+
+# 2. Pick the **last** one
+idx = valid_idxs[-1]  
+opt_thresh = thresholds[idx]
+print(f"Chosen threshold = {opt_thresh:.3f}  → precision={precision[idx]:.3f}, recall={recall[idx]:.3f}")
+
+# 3. Apply it
+y_pred_adj = (probs >= opt_thresh).astype(int)
+
+# 4. Re-evaluate
+print("Confusion Matrix:\n", confusion_matrix(y_val, y_pred_adj))
+print("\nClassification Report:\n", classification_report(y_val, y_pred_adj))
+
+
+#Final Metrics
+fpr, tpr, roc_th = roc_curve(y_val, probs)
+auc = roc_auc_score(y_val, probs)
+
+plt.figure(figsize=(6, 6))
+plt.plot(fpr, tpr, lw=2, label=f"AUC = {auc:.3f}")
+plt.plot([0, 1], [0, 1], ls="--", color="grey")
+plt.xlabel("False Positive Rate")
+plt.ylabel("True Positive Rate")
+plt.title("ROC Curve (Balanced Model)")
+plt.legend(loc="lower right")
+plt.show()
+
+print("ROC-AUC: ", auc)
+
+# --- Metrics at tuned threshold ---
+opt_thresh = 0.729
+y_pred_tuned = (probs >= opt_thresh).astype(int)
+
+cm = confusion_matrix(y_val, y_pred_tuned)
+print("\nConfusion Matrix at thresh = %.3f:\n" % opt_thresh, cm)
+
+print("\nClassification Report:")
+print(classification_report(y_val, y_pred_tuned))
+
+# Also print accuracy, precision, recall, f1 in one place
+metrics = {
+    "accuracy":  accuracy_score(y_val, y_pred_tuned),
+    "precision": precision_score(y_val, y_pred_tuned),
+    "recall":    recall_score(y_val, y_pred_tuned),
+    "f1_score":  f1_score(y_val, y_pred_tuned),
+}
+print("\nSummary metrics at thresh = %.3f:" % opt_thresh)
+for k, v in metrics.items():
+    print(f"  {k:>9}: {v:.3f}")
