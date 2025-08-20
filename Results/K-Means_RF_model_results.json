@@ -1,0 +1,1 @@
+{"threshold": 0.5533333333333333, "confusion_matrix": [[183, 0], [0, 16]], "accuracy": 1.0, "precision": 1.0, "recall": 1.0, "f1_score": 1.0, "roc_auc": 1.0, "fpr": [0.0, 0.0, 1.0], "tpr": [0.0, 1.0, 1.0], "roc_thresholds": [Infinity, 1.0, 0.0]}
