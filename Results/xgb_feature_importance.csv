@@ -1,0 +1,7 @@
+Feature,Importance
+payment_delinquency_count,0.30221757
+bnpl_usage_frequency,0.24441662
+credit_limit_utilisation,0.10894626
+financial_stress_score,0.10489268
+bnpl_debt_ratio,0.09448249
+stress_usage_interaction,0.07419535
