@@ -1,1 +1,1 @@
-{"threshold": 0.07568468898534775, "confusion_matrix": [[183, 0], [3, 13]], "accuracy": 0.9849246231155779, "precision": 1.0, "recall": 1.0, "f1_score": 1.0, "roc_auc": 1.0, "fpr": [0.0, 0.0, 1.0], "tpr": [0.0, 0.8125, 1.0], "roc_thresholds": [Infinity, 1.0, 0.0]}
+{"threshold": 50, "confusion_matrix": [[183, 0], [3, 13]], "accuracy": 0.9849246231155779, "precision": 1.0, "recall": 0.8125, "f1_score": 0.896551724137931, "roc_auc": 1.0, "fpr": [0.0, 0.0, 1.0], "tpr": [0.0, 0.8125, 1.0], "roc_thresholds": [Infinity, 1.0, 0.0]}
