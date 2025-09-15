@@ -5,3 +5,10 @@ stress_usage_interaction,0.13485490056837945
 financial_stress_score,0.12933461557188933
 payment_delinquency_count,0.11709784894774006
 credit_limit_utilisation,0.09412350782871916
+debt_accumulation_metric,0.05704544812712628
+financial_literacy_assessment,0.03522510784663757
+impulsive_buying_score,0.0334463548046743
+demographic_risk_factor,0.027762597073253244
+return_dispute_incidents,0.018834440573591904
+credit_card_interest_incidence,0.0097637203472614
+external_repayment_loans,0.008861799057483775
